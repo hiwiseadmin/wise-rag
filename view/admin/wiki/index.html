@@ -1,0 +1,379 @@
+{extend name="__WISE_VIEW__/base" /}
+
+{block name="title"}Wiki 知识编译{/block}
+
+{block name="content"}
+<script src="/statics/plugins/wise-rag/js/wiki.js" defer></script>
+
+<div class="app-main container-fluid pt-3">
+    {include file="__WISE_VIEW__/index_header" /}
+
+    <div id="wiki-stats" class="row g-2 mb-3">
+        <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3">
+            <div class="text-secondary small">Wiki 空间</div>
+            <div class="fs-4 fw-semibold">{$counts.spaces}</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3">
+            <div class="text-secondary small">页面</div>
+            <div class="fs-4 fw-semibold">{$counts.pages}</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3">
+            <div class="text-secondary small">待重编译</div>
+            <div class="fs-4 fw-semibold">{$counts.dirty}</div>
+        </div></div></div>
+        <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3">
+            <div class="text-secondary small">失败任务</div>
+            <div class="fs-4 fw-semibold">{$counts.jobs_failed}</div>
+        </div></div></div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body py-3">
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="small text-secondary">
+                    <i class="bi bi-coin"></i> 本月 token 预算
+                    <span id="wiki-budget-text" class="ms-1">—</span>
+                </div>
+                <div class="small text-secondary">
+                    编译能力：
+                    {if $compilable}
+                    <span class="badge bg-success">可用</span>
+                    {else /}
+                    <span class="badge bg-warning text-dark">未就绪（需 wise-rag + wise-agent）</span>
+                    {/if}
+                </div>
+            </div>
+            <div class="progress" style="height:8px">
+                <div id="wiki-budget-bar" class="progress-bar" role="progressbar" style="width:0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <ul class="nav nav-tabs mb-3" id="wiki-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-tab="spaces" type="button"><i class="bi bi-diagram-3"></i> 空间</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="pages" type="button"><i class="bi bi-journal-richtext"></i> 页面</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="jobs" type="button"><i class="bi bi-cpu"></i> 编译台</button></li>
+        <li class="nav-item"><button class="nav-link" data-tab="debug" type="button"><i class="bi bi-search"></i> 检索调试</button></li>
+    </ul>
+
+    <!-- ==================== 空间 ==================== -->
+    <div class="wiki-pane" data-pane="spaces">
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-2 align-items-end">
+                    <input type="hidden" id="space-id">
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">标识 space_key</label>
+                        <input type="text" class="form-control form-control-sm" id="space-key" placeholder="product_docs">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">名称</label>
+                        <input type="text" class="form-control form-control-sm" id="space-name" placeholder="商品文档">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">源知识库</label>
+                        <select class="form-select form-select-sm" id="space-source-kb"></select>
+                    </div>
+                    <div class="col-md-1">
+                        <label class="form-label mb-1">可见性</label>
+                        <select class="form-select form-select-sm" id="space-visibility">
+                            <option value="private">私有</option>
+                            <option value="tenant">租户</option>
+                            <option value="public">公开</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">月预算 token</label>
+                        <input type="number" class="form-control form-control-sm" id="space-budget" placeholder="0=不限">
+                    </div>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button class="btn btn-sm btn-primary flex-fill" id="space-save">保存</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="space-reset">清空</button>
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    创建空间会自动建立影子知识库（<code>wiki_{space_key}</code>）；源知识库不可更换，换知识域请新建空间。
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 ws-table">
+                    <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>空间</th>
+                        <th>源知识库</th>
+                        <th style="width:90px">页面</th>
+                        <th style="width:90px">待编译</th>
+                        <th style="width:180px">预算用量</th>
+                        <th style="width:90px">状态</th>
+                        <th style="width:180px">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="space-body">
+                    <tr><td colspan="8" class="text-center text-muted py-4">加载中…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 页面 ==================== -->
+    <div class="wiki-pane d-none" data-pane="pages">
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">空间</label>
+                        <select class="form-select form-select-sm" id="page-space-filter"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">状态</label>
+                        <select class="form-select form-select-sm" id="page-status-filter">
+                            <option value="">全部</option>
+                            <option value="draft">草稿</option>
+                            <option value="review">待审核</option>
+                            <option value="published">已发布</option>
+                            <option value="archived">已归档</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">关键词</label>
+                        <input type="text" class="form-control form-control-sm" id="page-keyword" placeholder="标题或 slug">
+                    </div>
+                    <div class="col-md-2">
+                        <div class="form-check mt-4">
+                            <input class="form-check-input" type="checkbox" id="page-dirty-only">
+                            <label class="form-check-label small" for="page-dirty-only">只看待重编译</label>
+                        </div>
+                    </div>
+                    <div class="col-md-2 d-flex gap-2">
+                        <button class="btn btn-sm btn-primary flex-fill" id="page-search">查询</button>
+                        <button class="btn btn-sm btn-outline-secondary" id="page-refresh">刷新</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 ws-table">
+                    <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th>页面</th>
+                        <th style="width:90px">类型</th>
+                        <th style="width:90px">状态</th>
+                        <th style="width:70px">版本</th>
+                        <th style="width:80px">质量分</th>
+                        <th style="width:110px">待重编译</th>
+                        <th style="width:150px">更新时间</th>
+                        <th style="width:250px">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="page-body">
+                    <tr><td colspan="9" class="text-center text-muted py-4">请选择空间后查询</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex justify-content-between align-items-center">
+                <div class="small text-secondary" id="page-total">共 0 条</div>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" id="page-prev">上一页</button>
+                    <button class="btn btn-outline-secondary" id="page-next">下一页</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 编译台 ==================== -->
+    <div class="wiki-pane d-none" data-pane="jobs">
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">空间</label>
+                        <select class="form-select form-select-sm" id="job-space-filter"></select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">状态</label>
+                        <select class="form-select form-select-sm" id="job-status-filter">
+                            <option value="">全部</option>
+                            <option value="running">执行中</option>
+                            <option value="ok">成功</option>
+                            <option value="failed">失败</option>
+                            <option value="skipped">跳过</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-sm btn-primary w-100" id="job-search">查询</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0 ws-table">
+                    <thead>
+                    <tr>
+                        <th style="width:60px">ID</th>
+                        <th style="width:70px">页面</th>
+                        <th style="width:100px">触发</th>
+                        <th style="width:90px">状态</th>
+                        <th style="width:110px">证据</th>
+                        <th style="width:130px">token</th>
+                        <th style="width:90px">耗时</th>
+                        <th>原因 / 错误</th>
+                        <th style="width:80px">操作</th>
+                    </tr>
+                    </thead>
+                    <tbody id="job-body">
+                    <tr><td colspan="9" class="text-center text-muted py-4">加载中…</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 检索调试 ==================== -->
+    <div class="wiki-pane d-none" data-pane="debug">
+        <div class="card mb-3">
+            <div class="card-body py-2">
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">空间</label>
+                        <select class="form-select form-select-sm" id="debug-space"></select>
+                    </div>
+                    <div class="col-md-5">
+                        <label class="form-label mb-1">查询</label>
+                        <input type="text" class="form-control form-control-sm" id="debug-query" placeholder="A100 功率是多少">
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label mb-1">Top K</label>
+                        <input type="number" class="form-control form-control-sm" id="debug-topk" value="5">
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-sm btn-primary w-100" id="debug-run">检索</button>
+                    </div>
+                </div>
+                <div class="form-text mt-2">
+                    「页面命中」来自影子知识库（编译后的结论），「源文档命中」来自源知识库（原始碎片）。
+                    只有 <code>published</code> 页面会进影子库。
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3">
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header py-2 small fw-semibold">页面命中（影子库）</div>
+                    <div class="card-body p-0"><div id="debug-pages" class="p-3 text-muted small">尚未检索</div></div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card h-100">
+                    <div class="card-header py-2 small fw-semibold">源文档命中（源库）</div>
+                    <div class="card-body p-0"><div id="debug-chunks" class="p-3 text-muted small">尚未检索</div></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 页面编辑抽屉 ==================== -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="page-drawer" style="width:min(960px,100%)">
+        <div class="offcanvas-header border-bottom py-2">
+            <h6 class="offcanvas-title mb-0" id="page-drawer-title">页面编辑</h6>
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="关闭"></button>
+        </div>
+        <div class="offcanvas-body">
+            <input type="hidden" id="drawer-page-id">
+            <input type="hidden" id="drawer-rev-no">
+
+            <div id="drawer-alert" class="alert d-none py-2 small"></div>
+
+            <div class="row g-2 mb-2">
+                <div class="col-md-8">
+                    <label class="form-label mb-1">标题</label>
+                    <input type="text" class="form-control form-control-sm" id="drawer-title">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label mb-1">状态</label>
+                    <select class="form-select form-select-sm" id="drawer-status">
+                        <option value="draft">草稿</option>
+                        <option value="review">待审核</option>
+                        <option value="published">已发布</option>
+                        <option value="archived">已归档</option>
+                    </select>
+                </div>
+                <div class="col-12">
+                    <label class="form-label mb-1">摘要</label>
+                    <input type="text" class="form-control form-control-sm" id="drawer-summary">
+                </div>
+                <div class="col-12">
+                    <label class="form-label mb-1">正文（Markdown，引用写 <code>[n]</code>）</label>
+                    <textarea class="form-control form-control-sm font-monospace" id="drawer-content" rows="18"></textarea>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2 mb-3">
+                <button class="btn btn-sm btn-primary" id="drawer-save">保存（乐观锁 rev<span id="drawer-rev-label">0</span>）</button>
+                <button class="btn btn-sm btn-success" id="drawer-publish">发布</button>
+                <button class="btn btn-sm btn-outline-secondary" id="drawer-archive">归档</button>
+                <button class="btn btn-sm btn-outline-primary" id="drawer-recompile">重新编译</button>
+                <button class="btn btn-sm btn-outline-danger ms-auto" id="drawer-delete">删除</button>
+            </div>
+
+            <div id="drawer-candidate" class="alert alert-warning py-2 small d-none"></div>
+
+            <div class="d-flex justify-content-between align-items-center mb-1">
+                <div class="small fw-semibold">版本记录</div>
+                <div class="small text-secondary">选两个版本可并排对比</div>
+            </div>
+            <div class="table-responsive border rounded">
+                <table class="table table-sm mb-0 ws-table">
+                    <thead>
+                    <tr>
+                        <th style="width:60px">rev</th>
+                        <th style="width:110px">类型</th>
+                        <th>变更原因</th>
+                        <th style="width:110px">prompt</th>
+                        <th style="width:150px">时间</th>
+                        <th style="width:110px">对比</th>
+                    </tr>
+                    </thead>
+                    <tbody id="drawer-revisions">
+                    <tr><td colspan="6" class="text-center text-muted py-3">暂无版本</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== 版本对比 ==================== -->
+    <div class="modal fade" id="diff-modal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header py-2">
+                    <h6 class="modal-title mb-0" id="diff-title">版本对比</h6>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1" id="diff-left-label">A</div>
+                            <pre class="border rounded p-2 small bg-light" style="white-space:pre-wrap;max-height:60vh;overflow:auto" id="diff-left"></pre>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="small text-secondary mb-1" id="diff-right-label">B</div>
+                            <pre class="border rounded p-2 small bg-light" style="white-space:pre-wrap;max-height:60vh;overflow:auto" id="diff-right"></pre>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{/block}

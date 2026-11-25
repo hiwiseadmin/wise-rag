@@ -1,0 +1,80 @@
+{
+    "name": "wiseadmin/wise-rag",
+    "description": "WiseAdmin RAG 知识库包 — 文档摄取、向量检索、引用溯源，插件零接入；内含独立命名空间的 Wiki 知识编译引擎（wise\\wiki）",
+    "homepage": "https://github.com/hiwiseadmin/wise-rag",
+    "type": "library",
+    "license": "Apache-2.0",
+    "keywords": [
+        "thinkphp",
+        "wiseadmin",
+        "rag",
+        "knowledge-base",
+        "vector"
+    ],
+    "authors": [
+        {
+            "name": "WiseAdmin Team",
+            "email": "wiseadmin@126.com"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "topthink/framework": "^8.0",
+        "wiseadmin/wise-support": "1.0.*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": ">=9.0",
+        "mockery/mockery": ">=1.0"
+    },
+    "suggest": {
+        "wiseadmin/wise-agent": "接入 Agent 自动检索工具与权限体系",
+        "wiseadmin/wise-attachment": "文档上传与附件存储",
+        "wiseadmin/wise-mcp": "将知识库以 MCP 暴露给外部客户端（P5+）",
+        "smalot/pdfparser": "PDF 解析（PdfParser）",
+        "phpoffice/phpword": "DOCX 解析",
+        "phpoffice/phpspreadsheet": "XLSX 解析"
+    },
+    "autoload": {
+        "psr-4": {
+            "wise\\rag\\": "src/rag/",
+            "wise\\wiki\\": "src/wiki/"
+        },
+        "files": [
+            "src/rag/helper.php",
+            "src/wiki/helper.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "wise\\rag\\test\\": "tests/",
+            "wise\\wiki\\test\\": "tests/wiki/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "extra": {
+        "think": {
+            "services": [
+                "wise\\rag\\RagServiceProvider",
+                "wise\\wiki\\WikiServiceProvider"
+            ],
+            "config": {
+                "wise-rag": "config/wise-rag.php"
+            },
+            "publish": {
+                "public": "public/statics/plugins/wise-rag"
+            }
+        }
+    },
+    "archive": {
+        "exclude": [
+            "/tests",
+            "/docs",
+            "/.github",
+            "/phpunit.xml",
+            "/.gitattributes",
+            "/*.md",
+            "!/README.md"
+        ]
+    }
+}
